@@ -3,7 +3,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Button } from '../ui';
 import { Wallet, LogOut } from 'lucide-react';
-import { formatAddress } from '@/utils';
+import { formatAddress } from '../../utils';
 
 export function WalletConnector() {
   const { connected, publicKey, disconnect } = useWallet();

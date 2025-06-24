@@ -62,7 +62,7 @@ export function DashboardLayout() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center">
+        <div className="container mx-auto flex h-16 items-center px-4">
           <div className="flex items-center space-x-4">
             <Button
               variant="ghost"
@@ -123,16 +123,12 @@ export function DashboardLayout() {
             
             <div className="p-4 border-t">
               <div className="flex items-center justify-center space-x-4">
-                <Button variant="ghost" size="sm" asChild>
-                  <a href="https://github.com" target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="sm" onClick={() => window.open('https://github.com', '_blank')}>
                     <Github className="h-4 w-4" />
-                  </a>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => window.open('https://twitter.com', '_blank')}>
                     <Twitter className="h-4 w-4" />
-                  </a>
-                </Button>
+                    </Button>
               </div>
             </div>
           </div>

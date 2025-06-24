@@ -11,8 +11,22 @@ export default defineConfig({
   },
   define: {
     global: 'globalThis',
+    process: {
+      env: {}
+    }
   },
   optimizeDeps: {
-    include: ['@solana/web3.js', '@solana/spl-token']
+    include: [
+      '@solana/web3.js', 
+      '@solana/spl-token',
+      '@solana/wallet-adapter-react',
+      '@solana/wallet-adapter-react-ui',
+      '@solana/wallet-adapter-wallets'
+    ]
+  },
+  server: {
+    fs: {
+      allow: ['..']
+    }
   }
 })

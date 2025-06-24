@@ -14,7 +14,7 @@ import {
   WalletModalProvider,
 } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
-import { useSolana } from '@/contexts/SolanaContext';
+import { useSolana } from '../../contexts/SolanaContext';
 
 require('@solana/wallet-adapter-react-ui/styles.css');
 

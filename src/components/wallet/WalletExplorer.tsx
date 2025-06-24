@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardContent, LoadingSpinner } from '../ui';
-import { useSolana } from '@/contexts/SolanaContext';
-import { formatAddress, formatBalance, validatePublicKey } from '@/utils';
-import { WalletInfo } from '@/types';
+import { useSolana } from '../../contexts/SolanaContext';
+import { formatAddress, formatBalance, validatePublicKey } from '../../utils';
+import { WalletInfo } from '../../types';
 import { Search, Wallet, Eye, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 

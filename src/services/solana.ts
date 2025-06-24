@@ -18,7 +18,6 @@ import {
   getAssociatedTokenAddress,
   getMint,
   getAccount,
-  getTokenSupply,
   TokenError,
 } from '@solana/spl-token';
 import { TokenInfo, TokenMetadata, TokenHolder, WalletInfo, NetworkType } from '../types';

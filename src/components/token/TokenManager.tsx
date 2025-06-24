@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardContent, LoadingSpinner } from '../ui';
-import { useSolana } from '@/contexts/SolanaContext';
-import { formatAddress, formatBalance, validatePublicKey } from '@/utils';
-import { TokenInfo } from '@/types';
-import { Search, Freeze, Thaw, Coins, Users } from 'lucide-react';
+import { useSolana } from '../../contexts/SolanaContext';
+import { formatAddress, formatBalance, validatePublicKey } from '../../utils';
+import { TokenInfo } from '../../types';
+import { Search, Snowflake, Sun, Coins, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function TokenManager() {
@@ -168,7 +168,7 @@ export function TokenManager() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <Freeze className="h-6 w-6" />
+                  <Snowflake className="h-6 w-6" />
                   <span>Account Management</span>
                 </CardTitle>
               </CardHeader>
@@ -193,7 +193,7 @@ export function TokenManager() {
                     {actionLoading === 'freeze' ? (
                       <LoadingSpinner className="h-4 w-4 mr-2" />
                     ) : (
-                      <Freeze className="h-4 w-4 mr-2" />
+                      <Snowflake className="h-4 w-4 mr-2" />
                     )}
                     Freeze Account
                   </Button>
@@ -207,7 +207,7 @@ export function TokenManager() {
                     {actionLoading === 'thaw' ? (
                       <LoadingSpinner className="h-4 w-4 mr-2" />
                     ) : (
-                      <Thaw className="h-4 w-4 mr-2" />
+                      <Sun className="h-4 w-4 mr-2" />
                     )}
                     Thaw Account
                   </Button>

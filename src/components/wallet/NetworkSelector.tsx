@@ -1,7 +1,7 @@
 import React from 'react';
 import { Select, Label } from '../ui';
-import { useSolana } from '@/contexts/SolanaContext';
-import { NetworkType } from '@/types';
+import { useSolana } from '../../contexts/SolanaContext';
+import { NetworkType } from '../../types';
 
 export function NetworkSelector() {
   const { network, setNetwork } = useSolana();
