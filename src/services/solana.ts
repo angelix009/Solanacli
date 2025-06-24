@@ -66,10 +66,11 @@ export class SolanaService {
       const initializeMintInstruction = createInitializeMintInstruction(
         mint,
         metadata.decimals,
-        mintable ? payer.publicKey : null,
-        freezable ? payer.publicKey : null,
-        TOKEN_PROGRAM_ID
+        payer.publicKey, // On garde toujours l'autorité pour l'instant
+        freezable ? payer.publicKey : payer.publicKey // On garde toujours l'autorité pour l'instant
       );
+
+      // TODO: Désactiver les autorités après la création si nécessaire
 
       const transaction = new Transaction().add(
         createAccountInstruction,
@@ -207,7 +208,6 @@ export class SolanaService {
   async getTokenInfo(mint: PublicKey): Promise<TokenInfo | null> {
     try {
       const mintInfo = await getMint(this.connection, mint);
-      const supply = await getTokenSupply(this.connection, mint);
 
       // Mock metadata - dans un vrai projet, récupérez depuis Metaplex
       const metadata: TokenMetadata = {
@@ -216,9 +216,9 @@ export class SolanaService {
         description: 'A custom token created with Solana Dashboard',
         image: '',
         decimals: mintInfo.decimals,
-        supply: parseInt(supply.value.amount),
-        freezeAuthority: mintInfo.freezeAuthority,
-        mintAuthority: mintInfo.mintAuthority,
+        supply: Number(mintInfo.supply),
+        freezeAuthority: mintInfo.freezeAuthority || undefined,
+        mintAuthority: mintInfo.mintAuthority || undefined,
       };
 
       return {
@@ -228,7 +228,7 @@ export class SolanaService {
         isMintable: mintInfo.mintAuthority !== null,
         isFreezable: mintInfo.freezeAuthority !== null,
         holders: [],
-        totalSupply: parseInt(supply.value.amount),
+        totalSupply: Number(mintInfo.supply),
       };
     } catch (error) {
       console.error('Error getting token info:', error);

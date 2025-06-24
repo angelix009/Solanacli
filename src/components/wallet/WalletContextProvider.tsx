@@ -8,7 +8,6 @@ import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
   TorusWalletAdapter,
-  BackpackWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
 import {
   WalletModalProvider,
@@ -42,7 +41,6 @@ export function WalletContextProvider({ children }: WalletContextProviderProps) 
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
       new TorusWalletAdapter(),
-      new BackpackWalletAdapter(),
     ],
     []
   );
