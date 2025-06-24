@@ -1,4 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 
 export interface TokenMetadata {
   name: string;
@@ -40,4 +41,18 @@ export interface TokenBalance {
   symbol: string;
 }
 
+// Utiliser directement le type de wallet-adapter pour éviter les conflits
 export type NetworkType = 'devnet' | 'testnet' | 'mainnet-beta';
+
+// Fonction utilitaire pour convertir NetworkType vers WalletAdapterNetwork
+export function networkTypeToWalletAdapterNetwork(network: NetworkType): WalletAdapterNetwork {
+  switch (network) {
+    case 'mainnet-beta':
+      return WalletAdapterNetwork.Mainnet;
+    case 'testnet':
+      return WalletAdapterNetwork.Testnet;
+    case 'devnet':
+    default:
+      return WalletAdapterNetwork.Devnet;
+  }
+}

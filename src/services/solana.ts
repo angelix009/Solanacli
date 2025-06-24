@@ -6,6 +6,7 @@ import {
   SystemProgram,
   LAMPORTS_PER_SOL,
   sendAndConfirmTransaction,
+  clusterApiUrl,
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
@@ -19,8 +20,12 @@ import {
   getMint,
   getAccount,
   TokenError,
+  createSetAuthorityInstruction,
+  AuthorityType,
+  getOrCreateAssociatedTokenAccount,
 } from '@solana/spl-token';
-import { TokenInfo, TokenMetadata, TokenHolder, WalletInfo, NetworkType } from '../types';
+import { TokenInfo, TokenMetadata, TokenHolder, WalletInfo, NetworkType, networkTypeToWalletAdapterNetwork } from '../types';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 
 export class SolanaService {
   private connection: Connection;
@@ -32,19 +37,12 @@ export class SolanaService {
   }
 
   private getClusterUrl(network: NetworkType): string {
-    switch (network) {
-      case 'mainnet-beta':
-        return 'https://api.mainnet-beta.solana.com';
-      case 'testnet':
-        return 'https://api.testnet.solana.com';
-      case 'devnet':
-      default:
-        return 'https://api.devnet.solana.com';
-    }
+    const walletNetwork = networkTypeToWalletAdapterNetwork(network);
+    return clusterApiUrl(walletNetwork);
   }
 
   async createToken(
-    payer: Keypair,
+    payer: any, // Wallet adapter
     metadata: TokenMetadata,
     freezable: boolean = true,
     mintable: boolean = true
@@ -53,8 +51,13 @@ export class SolanaService {
       const mintKeypair = Keypair.generate();
       const mint = mintKeypair.publicKey;
 
+      console.log('Creating token with mint:', mint.toString());
+      console.log('Payer:', payer.publicKey.toString());
+
+      // Calculer la taille et le coût du mint account
       const rentExemption = await this.connection.getMinimumBalanceForRentExemption(82);
 
+      // Créer l'instruction pour créer le compte mint
       const createAccountInstruction = SystemProgram.createAccount({
         fromPubkey: payer.publicKey,
         newAccountPubkey: mint,
@@ -63,88 +66,94 @@ export class SolanaService {
         programId: TOKEN_PROGRAM_ID,
       });
 
+      // Créer l'instruction pour initialiser le mint
       const initializeMintInstruction = createInitializeMintInstruction(
         mint,
         metadata.decimals,
-        payer.publicKey, // On garde toujours l'autorité pour l'instant
-        freezable ? payer.publicKey : payer.publicKey // On garde toujours l'autorité pour l'instant
+        payer.publicKey, // Mint authority
+        freezable ? payer.publicKey : null // Freeze authority
       );
 
-      // TODO: Désactiver les autorités après la création si nécessaire
-
+      // Créer la transaction
       const transaction = new Transaction().add(
         createAccountInstruction,
         initializeMintInstruction
       );
 
-      const signature = await sendAndConfirmTransaction(
+      // Obtenir le blockhash récent
+      const { blockhash } = await this.connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = payer.publicKey;
+
+      // Signer avec le mint keypair
+      transaction.partialSign(mintKeypair);
+
+      // Envoyer et signer avec le wallet
+      const signature = await payer.sendTransaction(transaction, this.connection);
+      
+      // Confirmer la transaction
+      await this.connection.confirmTransaction(signature, 'confirmed');
+
+      console.log('Token created with signature:', signature);
+
+      // Créer le compte de token associé pour le créateur
+      const associatedTokenAccount = await getOrCreateAssociatedTokenAccount(
         this.connection,
-        transaction,
-        [payer, mintKeypair]
-      );
-
-      return { mint, signature };
-    } catch (error) {
-      console.error('Error creating token:', error);
-      throw new Error('Failed to create token');
-    }
-  }
-
-  async mintTokens(
-    payer: Keypair,
-    mint: PublicKey,
-    destination: PublicKey,
-    amount: number,
-    decimals: number
-  ): Promise<string> {
-    try {
-      const associatedTokenAccount = await getAssociatedTokenAddress(
+        mintKeypair, // Utilise une keypair temporaire
         mint,
-        destination,
+        payer.publicKey,
         false,
+        'confirmed',
+        {},
         TOKEN_PROGRAM_ID,
         ASSOCIATED_TOKEN_PROGRAM_ID
       );
 
-      let transaction = new Transaction();
+      // Mint les tokens initiaux
+      if (metadata.supply > 0) {
+        const mintTransaction = new Transaction().add(
+          createMintToInstruction(
+            mint,
+            associatedTokenAccount.address,
+            payer.publicKey,
+            metadata.supply * Math.pow(10, metadata.decimals),
+            [],
+            TOKEN_PROGRAM_ID
+          )
+        );
 
-      try {
-        await getAccount(this.connection, associatedTokenAccount);
-      } catch (error) {
-        if (error instanceof TokenError) {
-          transaction.add(
-            createAssociatedTokenAccountInstruction(
-              payer.publicKey,
-              associatedTokenAccount,
-              destination,
-              mint,
-              TOKEN_PROGRAM_ID,
-              ASSOCIATED_TOKEN_PROGRAM_ID
-            )
-          );
-        }
+        const mintSignature = await payer.sendTransaction(mintTransaction, this.connection);
+        await this.connection.confirmTransaction(mintSignature, 'confirmed');
+        console.log('Minted tokens with signature:', mintSignature);
       }
 
-      transaction.add(
-        createMintToInstruction(
-          mint,
-          associatedTokenAccount,
-          payer.publicKey,
-          amount * Math.pow(10, decimals),
-          [],
-          TOKEN_PROGRAM_ID
-        )
-      );
+      // Désactiver l'autorité de mint si demandé
+      if (!mintable) {
+        const disableMintTransaction = new Transaction().add(
+          createSetAuthorityInstruction(
+            mint,
+            payer.publicKey,
+            AuthorityType.MintTokens,
+            null,
+            [],
+            TOKEN_PROGRAM_ID
+          )
+        );
 
-      return await sendAndConfirmTransaction(this.connection, transaction, [payer]);
+        const disableSignature = await payer.sendTransaction(disableMintTransaction, this.connection);
+        await this.connection.confirmTransaction(disableSignature, 'confirmed');
+        console.log('Disabled mint authority with signature:', disableSignature);
+      }
+
+      return { mint, signature };
     } catch (error) {
-      console.error('Error minting tokens:', error);
-      throw new Error('Failed to mint tokens');
+      console.error('Error creating token:', error);
+      throw new Error(`Failed to create token: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async freezeAccount(
-    payer: Keypair,
+    payer: any,
     mint: PublicKey,
     account: PublicKey
   ): Promise<string> {
@@ -167,15 +176,18 @@ export class SolanaService {
         )
       );
 
-      return await sendAndConfirmTransaction(this.connection, transaction, [payer]);
+      const signature = await payer.sendTransaction(transaction, this.connection);
+      await this.connection.confirmTransaction(signature, 'confirmed');
+      
+      return signature;
     } catch (error) {
       console.error('Error freezing account:', error);
-      throw new Error('Failed to freeze account');
+      throw new Error(`Failed to freeze account: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async thawAccount(
-    payer: Keypair,
+    payer: any,
     mint: PublicKey,
     account: PublicKey
   ): Promise<string> {
@@ -198,10 +210,13 @@ export class SolanaService {
         )
       );
 
-      return await sendAndConfirmTransaction(this.connection, transaction, [payer]);
+      const signature = await payer.sendTransaction(transaction, this.connection);
+      await this.connection.confirmTransaction(signature, 'confirmed');
+      
+      return signature;
     } catch (error) {
       console.error('Error thawing account:', error);
-      throw new Error('Failed to thaw account');
+      throw new Error(`Failed to thaw account: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -209,16 +224,16 @@ export class SolanaService {
     try {
       const mintInfo = await getMint(this.connection, mint);
 
-      // Mock metadata - dans un vrai projet, récupérez depuis Metaplex
+      // Métadonnées basiques (dans un vrai projet, utilisez Metaplex)
       const metadata: TokenMetadata = {
         name: 'Custom Token',
         symbol: 'CUSTOM',
         description: 'A custom token created with Solana Dashboard',
         image: '',
         decimals: mintInfo.decimals,
-        supply: Number(mintInfo.supply),
-        freezeAuthority: mintInfo.freezeAuthority || undefined,
-        mintAuthority: mintInfo.mintAuthority || undefined,
+        supply: Number(mintInfo.supply) / Math.pow(10, mintInfo.decimals),
+        freezeAuthority: mintInfo.freezeAuthority,
+        mintAuthority: mintInfo.mintAuthority,
       };
 
       return {
@@ -240,8 +255,23 @@ export class SolanaService {
     try {
       const balance = await this.connection.getBalance(address);
 
-      // Dans un vrai projet, récupérez tous les tokens du wallet
-      const tokens = [];
+      // Obtenir les comptes de tokens de ce wallet
+      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
+        address,
+        {
+          programId: TOKEN_PROGRAM_ID,
+        }
+      );
+
+      const tokens = tokenAccounts.value.map(account => {
+        const parsedInfo = account.account.data.parsed.info;
+        return {
+          mint: new PublicKey(parsedInfo.mint),
+          balance: parseInt(parsedInfo.tokenAmount.amount),
+          decimals: parsedInfo.tokenAmount.decimals,
+          symbol: 'UNKNOWN', // Dans un vrai projet, récupérez depuis les métadonnées
+        };
+      }).filter(token => token.balance > 0);
 
       return {
         address,
@@ -250,14 +280,48 @@ export class SolanaService {
       };
     } catch (error) {
       console.error('Error getting wallet info:', error);
-      throw new Error('Failed to get wallet info');
+      throw new Error(`Failed to get wallet info: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async getTokenHolders(mint: PublicKey): Promise<TokenHolder[]> {
     try {
-      // Mock implementation - dans un vrai projet, utilisez getProgramAccounts
-      return [];
+      const accounts = await this.connection.getProgramAccounts(
+        TOKEN_PROGRAM_ID,
+        {
+          filters: [
+            {
+              dataSize: 165, // Taille d'un compte de token
+            },
+            {
+              memcmp: {
+                offset: 0,
+                bytes: mint.toBase58(),
+              },
+            },
+          ],
+        }
+      );
+
+      const holders: TokenHolder[] = [];
+      
+      for (const account of accounts) {
+        try {
+          const tokenAccount = await getAccount(this.connection, account.pubkey);
+          if (Number(tokenAccount.amount) > 0) {
+            holders.push({
+              address: tokenAccount.owner,
+              balance: Number(tokenAccount.amount),
+              isFrozen: tokenAccount.isFrozen,
+            });
+          }
+        } catch (error) {
+          // Ignorer les comptes invalides
+          continue;
+        }
+      }
+
+      return holders;
     } catch (error) {
       console.error('Error getting token holders:', error);
       return [];
@@ -270,5 +334,25 @@ export class SolanaService {
 
   getNetwork(): NetworkType {
     return this.network;
+  }
+
+  // Méthode utilitaire pour obtenir des SOL de test sur devnet
+  async requestAirdrop(publicKey: PublicKey, amount: number = 1): Promise<string> {
+    if (this.network !== 'devnet') {
+      throw new Error('Airdrop only available on devnet');
+    }
+
+    try {
+      const signature = await this.connection.requestAirdrop(
+        publicKey,
+        amount * LAMPORTS_PER_SOL
+      );
+      
+      await this.connection.confirmTransaction(signature, 'confirmed');
+      return signature;
+    } catch (error) {
+      console.error('Error requesting airdrop:', error);
+      throw new Error('Failed to request airdrop');
+    }
   }
 }

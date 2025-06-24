@@ -7,15 +7,16 @@ import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
-  TorusWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
 import {
   WalletModalProvider,
 } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import { useSolana } from '../../contexts/SolanaContext';
+import { networkTypeToWalletAdapterNetwork } from '../../types';
 
-require('@solana/wallet-adapter-react-ui/styles.css');
+// Import des styles CSS nécessaires
+import '@solana/wallet-adapter-react-ui/styles.css';
 
 interface WalletContextProviderProps {
   children: ReactNode;
@@ -24,30 +25,30 @@ interface WalletContextProviderProps {
 export function WalletContextProvider({ children }: WalletContextProviderProps) {
   const { network } = useSolana();
 
+  // Configuration de l'endpoint en fonction du réseau
   const endpoint = useMemo(() => {
-    switch (network) {
-      case 'mainnet-beta':
-        return clusterApiUrl(WalletAdapterNetwork.Mainnet);
-      case 'testnet':
-        return clusterApiUrl(WalletAdapterNetwork.Testnet);
-      case 'devnet':
-      default:
-        return clusterApiUrl(WalletAdapterNetwork.Devnet);
-    }
+    const walletNetwork = networkTypeToWalletAdapterNetwork(network);
+    return clusterApiUrl(walletNetwork);
   }, [network]);
 
+  // Configuration des wallets supportés (seulement les plus stables)
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
-      new TorusWalletAdapter(),
     ],
-    []
+    [network]
   );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider 
+        wallets={wallets} 
+        autoConnect={true}
+        onError={(error) => {
+          console.error('Wallet connection error:', error);
+        }}
+      >
         <WalletModalProvider>
           {children}
         </WalletModalProvider>

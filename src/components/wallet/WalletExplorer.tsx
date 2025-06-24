@@ -24,7 +24,6 @@ export function WalletExplorer() {
       const address = new PublicKey(walletAddress);
       const info = await service.getWalletInfo(address);
       setWalletInfo(info);
-      toast.success('Wallet information loaded');
     } catch (error) {
       toast.error('Failed to fetch wallet info');
       setWalletInfo(null);
